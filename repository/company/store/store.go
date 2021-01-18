@@ -2,6 +2,10 @@ package store
 
 import (
 	"context"
+	"log"
+	"time"
+
+	"go.mongodb.org/mongo-driver/mongo/readpref"
 
 	"github.com/devit-tel/goerror"
 	"go.mongodb.org/mongo-driver/bson"
@@ -13,7 +17,7 @@ import (
 )
 
 type Store struct {
-	mongo          *mongo.Client
+	db             *mongo.Client
 	dbName         string
 	collectionName string
 }
@@ -21,20 +25,26 @@ type Store struct {
 func New(mongoEndpoint, dbName, collectionName string) *Store {
 	clientOptions := options.Client().ApplyURI(mongoEndpoint)
 
-	db, err := mongo.Connect(context.Background(), clientOptions)
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+
+	db, err := mongo.Connect(ctx, clientOptions)
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
+	}
+
+	if err = db.Ping(ctx, readpref.Primary()); err != nil {
+		log.Fatal(err)
 	}
 
 	return &Store{
 		dbName:         dbName,
 		collectionName: collectionName,
-		mongo:          db,
+		db:             db,
 	}
 }
 
 func (s *Store) collectionCompany() *mongo.Collection {
-	return s.mongo.Database(s.dbName).Collection(s.collectionName)
+	return s.db.Database(s.dbName).Collection(s.collectionName)
 }
 
 func (s *Store) Get(ctx context.Context, companyId string) (*domain.Company, goerror.Error) {
